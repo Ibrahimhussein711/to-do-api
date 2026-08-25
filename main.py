@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from database import get_all_tasks,get_task_by_id
 
 app = FastAPI()
 
@@ -47,15 +48,16 @@ def health():
 
 @app.get("/tasks")
 def get_tasks():
-    return tasks
+    return get_all_tasks()
 
 @app.get("/tasks/{id}")
 def get_task(id: int):
-    for task in tasks:
-        if task["id"] == id:
-            return task
+    task = get_task_by_id(id)
 
-    raise HTTPException(status_code=404, detail="Task not found")
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return task
 
 @app.post("/tasks")
 def create_task(task: TaskCreate):
