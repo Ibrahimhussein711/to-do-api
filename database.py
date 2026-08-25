@@ -61,7 +61,6 @@ def get_all_tasks():
 
     return tasks
 
-print(get_all_tasks())
 
 def get_task_by_id(task_id: int):
     connection = get_connection()
@@ -87,4 +86,59 @@ def get_task_by_id(task_id: int):
 
     return task
 
-print(get_task_by_id(1))
+def create_task(title: str):
+    connection = get_connection()
+
+    cursor = connection.execute(
+        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+        (title, False)
+    )
+
+    task_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return {
+        "id": task_id,
+        "title": title,
+        "done": False
+    }
+
+
+def update_task(task_id: int, title: str, done: bool):
+    connection = get_connection()
+
+    cursor = connection.execute(
+        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+        (title, done, task_id)
+    )
+
+    if cursor.rowcount == 0:
+        connection.close()
+        return None
+
+    connection.commit()
+    connection.close()
+
+    return get_task_by_id(task_id)
+
+def delete_task(task_id: int):
+    connection = get_connection()
+
+    cursor = connection.execute(
+        "DELETE FROM tasks WHERE id = ?",
+        (task_id,)
+    )
+
+    if cursor.rowcount == 0:
+        connection.close()
+        return False
+
+    connection.commit()
+    connection.close()
+
+    return True
+
+
+
