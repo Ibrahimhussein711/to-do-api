@@ -42,9 +42,13 @@ def get_task(id: int):
 
     return task
 
-@app.post("/tasks",status_code=201)
-def create_task_endpoint(task: TaskCreate):
-    return create_task(task.title)
+@app.post("/tasks", status_code=201)
+def add_task(task_data: TaskCreate):
+    # Validation: Ensure title is not empty
+    if not task_data.title.strip():
+        raise HTTPException(status_code=400, detail={"error": "Title is required"})
+    
+    return create_task(task_data.title)
 
 @app.put("/tasks/{id}")
 def update_task_endpoint(id: int, updated_task: TaskUpdate):
@@ -55,7 +59,7 @@ def update_task_endpoint(id: int, updated_task: TaskUpdate):
     )
 
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail={"error": "Task not found"})
 
     return task
 
@@ -66,4 +70,4 @@ def delete_task_endpoint(id: int):
     deleted = delete_task(id)
 
     if not deleted:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail={"error": "Task not found"})
