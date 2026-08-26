@@ -1,144 +1,86 @@
-import sqlite3
+import psycopg
+import os
+from dotenv import load_dotenv
 
-DATABASE_NAME = "tasks.db"
-
+# تحميل الإعدادات من ملف .env
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_connection():
-    return sqlite3.connect(DATABASE_NAME)
-
+    # الاتصال بـ Postgres باستخدام الرابط اللي في الـ .env
+    return psycopg.connect(DATABASE_URL)
 
 def init_db():
-    connection = get_connection()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # SERIAL في Postgres تعادل AUTOINCREMENT
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    done BOOLEAN NOT NULL
+                )
+            """)
+            
+            cur.execute("SELECT COUNT(*) FROM tasks")
+            count = cur.fetchone()[0]
 
-    connection.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            done BOOLEAN NOT NULL
-        
-        )
-    """)
-    cursor = connection.execute("SELECT COUNT(*) FROM tasks")
-    count = cursor.fetchone()[0]
+            if count == 0:
+                # نستخدم %s بدل ?
+                cur.execute("INSERT INTO tasks (title, done) VALUES (%s, %s)", ("Study Backend", False))
+                cur.execute("INSERT INTO tasks (title, done) VALUES (%s, %s)", ("Go to Gym", True))
+                cur.execute("INSERT INTO tasks (title, done) VALUES (%s, %s)", ("Read FastAPI Docs", False))
+            
+            conn.commit()
 
-    if count == 0:
-        connection.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
-        ("Study Backend", False)
-    )
-
-        connection.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
-        ("Go to Gym", True)
-    )
-
-        connection.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
-        ("Read FastAPI Docs", False)
-    )
-
-    connection.commit()
-    connection.close()
-
+# تشغيل الـ Init عند استدعاء الملف
 init_db()
 
 def get_all_tasks():
-    connection = get_connection()
-
-    cursor = connection.execute("SELECT * FROM tasks")
-    rows = cursor.fetchall()
-
-    connection.close()
-
-    tasks = [
-        {
-            "id": row[0],
-            "title": row[1],
-            "done": bool(row[2])
-        }
-        for row in rows
-    ]
-
-    return tasks
-
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title, done FROM tasks ORDER BY id")
+            rows = cur.fetchall()
+            return [{"id": row[0], "title": row[1], "done": row[2]} for row in rows]
 
 def get_task_by_id(task_id: int):
-    connection = get_connection()
-
-    cursor = connection.execute(
-        "SELECT * FROM tasks WHERE id = ?",
-        (task_id,)
-    )
-
-    row = cursor.fetchone()
-
-    if row is None:
-        connection.close()
-        return None
-
-    task = {
-        "id": row[0],
-        "title": row[1],
-        "done": bool(row[2])
-    }
-
-    connection.close()
-
-    return task
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title, done FROM tasks WHERE id = %s", (task_id,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {"id": row[0], "title": row[1], "done": row[2]}
 
 def create_task(title: str):
-    connection = get_connection()
-
-    cursor = connection.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
-        (title, False)
-    )
-
-    task_id = cursor.lastrowid
-
-    connection.commit()
-    connection.close()
-
-    return {
-        "id": task_id,
-        "title": title,
-        "done": False
-    }
-
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # بنستخدم RETURNING id عشان ناخد الـ ID اللي اتعمل فوراً
+            cur.execute(
+                "INSERT INTO tasks (title, done) VALUES (%s, %s) RETURNING id",
+                (title, False)
+            )
+            task_id = cur.fetchone()[0]
+            conn.commit()
+            return {"id": task_id, "title": title, "done": False}
 
 def update_task(task_id: int, title: str, done: bool):
-    connection = get_connection()
-
-    cursor = connection.execute(
-        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
-        (title, done, task_id)
-    )
-
-    if cursor.rowcount == 0:
-        connection.close()
-        return None
-
-    connection.commit()
-    connection.close()
-
-    return get_task_by_id(task_id)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tasks SET title = %s, done = %s WHERE id = %s",
+                (title, done, task_id)
+            )
+            if cur.rowcount == 0:
+                return None
+            conn.commit()
+            return get_task_by_id(task_id)
 
 def delete_task(task_id: int):
-    connection = get_connection()
-
-    cursor = connection.execute(
-        "DELETE FROM tasks WHERE id = ?",
-        (task_id,)
-    )
-
-    if cursor.rowcount == 0:
-        connection.close()
-        return False
-
-    connection.commit()
-    connection.close()
-
-    return True
-
-
-
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+            if cur.rowcount == 0:
+                return False
+            conn.commit()
+            return True
