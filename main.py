@@ -4,23 +4,6 @@ from database import get_all_tasks,get_task_by_id,create_task,update_task,delete
 
 app = FastAPI()
 
-tasks = [
-    {
-        "id": 1,
-        "title": "Study Backend",
-        "done": False
-    },
-    {
-        "id": 2,
-        "title": "Go to Gym",
-        "done": True
-    },
-    {
-        "id": 3,
-        "title": "Read FastAPI Docs",
-        "done": False
-    }
-]
 
 class TaskCreate(BaseModel):
     title: str
@@ -55,7 +38,7 @@ def get_task(id: int):
     task = get_task_by_id(id)
 
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail={"error": "Task not found"})
 
     return task
 
